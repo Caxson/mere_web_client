@@ -56,6 +56,9 @@ export default {
                 console.log("[start/WebRtcPeerSendrecv] Created; start local video");
                 this.startVideo(this.$refs.localVideo);
 
+                // 添加镜像样式
+                this.$refs.localVideo.classList.add('mirrored-video');
+
                 console.log("[start/WebRtcPeerSendrecv] Generate SDP Offer");
                 this.webRtcPeer.generateOffer((err, sdpOffer) => {
                     if (err) {
@@ -165,7 +168,7 @@ export default {
     },
     mounted() {
         this.ws = new WebSocket('wss://' + 'localhost:7080' + '/mere_ws_server');
-        console.log("ws: " + this.ws)
+        console.log("ws: " + this.ws.url)
         this.ws.onmessage = (message) => {
             const jsonMessage = JSON.parse(message.data);
             console.log("[onmessage] Received message: " + message.data);
@@ -284,5 +287,9 @@ button {
     font-size: 1.2rem;
     font-weight: bold;
     cursor: pointer;
+}
+
+.mirrored-video {
+    transform: scaleX(-1);
 }
 </style>
