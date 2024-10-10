@@ -3,7 +3,6 @@ import HomePage from '@/components/HomePage.vue';
 import VideosPage from '@/components/VideosPage.vue';
 import TextPage from '@/components/TextPage.vue';
 import VideoCall from "@/components/VideoCall.vue";
-import VideoTest from '@/views/VideoTest.vue';
 
 const routes = [
     {
@@ -25,11 +24,6 @@ const routes = [
         path: '/videoCall',
         name: 'videoCall',
         component: VideoCall
-    },
-    {
-        path: '/videoTest',
-        name: 'videoTest',
-        component: VideoTest
     },
     {
         path: '/:catchAll(.*)',
