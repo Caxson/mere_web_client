@@ -33,7 +33,7 @@ export default {
             uiState: 0, // 初始化状态
             UI_IDLE: 0, // 状态：等待
             UI_STARTED: 1, // 状态：推流已开始
-            srsUrl: 'http://101.126.157.152:1985/rtc/v1',
+            srsUrl: '123.56.254.166',
             retryCount: 0,  // 重试次数
             maxRetries: 3,  // 最大重试次数
             showRetryPrompt: false,  // 控制弹窗显示
@@ -44,9 +44,29 @@ export default {
         async startSession() {
             console.log('[startSession] 开始推流并准备拉流');
 
+            // 关闭已有的 peerConnection
+            if (this.peerConnection) {
+                this.peerConnection.close();
+                this.peerConnection = null;
+            }
+
             this.peerConnection = new RTCPeerConnection({
                 iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
             });
+
+            // // 添加发送器（Transceiver）
+            // this.peerConnection.addTransceiver('audio', { direction: 'sendonly' });
+            // this.peerConnection.addTransceiver('video', { direction: 'sendonly' });
+            //
+            // // 获取摄像头和麦克风
+            // this.stream = await navigator.mediaDevices.getUserMedia(this.constraints);
+            //
+            // // 添加轨道到 RTCPeerConnection
+            // this.stream.getTracks().forEach(track => {
+            //     this.peerConnection.addTrack(track, this.stream);
+            //     // 触发 ontrack 回调
+            //     this.ontrack && this.ontrack({ track });
+            // });
 
             // 获取本地摄像头和麦克风的流
             this.localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -55,6 +75,13 @@ export default {
             // 添加镜像样式（动态绑定）
             this.mirrored = true;
             this.applyMirror();
+
+            // 查看本地视频流
+            this.localStream.getVideoTracks().forEach(track => console.log('Local video track:', track));
+
+            // 添加发送和接收的接收器
+            // const videoTransceiver = this.peerConnection.addTransceiver(this.localStream.getVideoTracks()[0], { direction: 'sendonly' });
+            // const audioTransceiver = this.peerConnection.addTransceiver(this.localStream.getAudioTracks()[0], { direction: 'sendonly' });
 
             // 将音视频轨道添加到 RTCPeerConnection
             this.localStream.getTracks().forEach(track => this.peerConnection.addTrack(track, this.localStream));
@@ -66,18 +93,33 @@ export default {
                 }
             };
 
-            const offerOptions = {
-                offerToReceiveAudio: true,
-                offerToReceiveVideo: true
-            };
+            // 监听 ICE Gathering 状态
+            // await new Promise(resolve => {
+            //     if (this.peerConnection.iceGatheringState === 'complete') {
+            //         resolve();
+            //     } else {
+            //         const checkState = () => {
+            //             if (this.peerConnection.iceGatheringState === 'complete') {
+            //                 this.peerConnection.removeEventListener('icegatheringstatechange', checkState);
+            //                 resolve();
+            //             }
+            //         };
+            //         this.peerConnection.addEventListener('icegatheringstatechange', checkState);
+            //     }
+            // });
+
+            // const offerOptions = {
+            //     offerToReceiveAudio: true,
+            //     offerToReceiveVideo: true
+            // };
 
             // 创建 SDP Offer 并推送到 SRS
-            const offer = await this.peerConnection.createOffer(offerOptions);
+            const offer = await this.peerConnection.createOffer();
             await this.peerConnection.setLocalDescription(offer);
 
             console.log('SDP:', offer.sdp);
 
-            const sdpJson = JSON.stringify({ sdp: offer.sdp, type: 'offer' });
+            // const sdpJson = JSON.stringify({ sdp: offer.sdp, type: 'offer' });
 
             const resData = {
                 api: 'http://123.56.254.166:1985/rtc/v1/publish/',
@@ -88,82 +130,33 @@ export default {
                 action: 'on_publish'
             };
 
-            const response = await fetch('/rtc/v1/publish/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(resData)
-            }).then(res => console.log(res), err => console.log(err));
+            try {
+                const response = await fetch('/rtc/v1/publish/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(resData)
+                });
 
-            const data = await response.json();
-            await this.peerConnection.setRemoteDescription(new RTCSessionDescription(data));
+                if (!response.ok) {
+                    const text = await response.text();
+                    throw new Error(`HTTP error! status: ${response.status}, message: ${text}`);
+                }
+
+                const responseData = await response.json();
+                console.log('Response Data:', responseData);
+                await this.peerConnection.setRemoteDescription(new RTCSessionDescription({
+                    type: 'answer',
+                    sdp: responseData.sdp
+                }));
+            } catch (err) {
+                console.error('Error during startSession:', err);
+            }
 
             console.log('[startSession] 推流成功，开始拉流');
             await this.startPlaying();
         },
-
-        // async startSession() {
-        //     console.log('[startSession] 开始推流并准备拉流');
-        //
-        //     // 创建 RTCPeerConnection
-        //     this.peerConnection = new RTCPeerConnection({
-        //         iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-        //     });
-        //
-        //     // 处理 ICE 候选
-        //     this.peerConnection.onicecandidate = event => {
-        //         if (event.candidate) {
-        //             signalingSocket.send(JSON.stringify({ 'candidate': event.candidate }));
-        //         }
-        //     };
-        //
-        //     // 获取本地摄像头和麦克风的流
-        //     this.localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        //     this.$refs.localVideo.srcObject = this.localStream;
-        //
-        //     // 将音视频轨道添加到 RTCPeerConnection
-        //     this.localStream.getTracks().forEach(track => this.peerConnection.addTrack(track, this.localStream));
-        //
-        //     // 创建 SDP Offer 并发送到 SRS
-        //     const offer = await this.peerConnection.createOffer();
-        //     await this.peerConnection.setLocalDescription(offer);
-        //
-        //     console.log('SDP:', offer.sdp);
-        //
-        //     // 通过 WebSocket 连接到 SRS 的 WebRTC 信令服务器
-        //     const signalingSocket = new WebSocket('ws://123.56.254.166:8000/rtc/v1/signaling');
-        //
-        //     signalingSocket.onopen = () => {
-        //         console.log('信令服务器连接成功');
-        //         signalingSocket.send(JSON.stringify({ 'sdp': offer }));
-        //     };
-        //
-        //     signalingSocket.onmessage = async (message) => {
-        //         const data = JSON.parse(message.data);
-        //         if (data.sdp) {
-        //             await this.peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
-        //             if (data.sdp.type === 'offer') {
-        //                 const answer = await this.peerConnection.createAnswer();
-        //                 await this.peerConnection.setLocalDescription(answer);
-        //                 signalingSocket.send(JSON.stringify({ 'sdp': answer }));
-        //             }
-        //         } else if (data.candidate) {
-        //             await this.peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
-        //         }
-        //     };
-        //
-        //     signalingSocket.onerror = (error) => {
-        //         console.error('信令服务器连接错误:', error);
-        //     };
-        //
-        //     signalingSocket.onclose = () => {
-        //         console.log('信令服务器连接关闭');
-        //     };
-        //
-        //     console.log('[startSession] 推流成功，开始拉流');
-        //     await this.startPlaying();
-        // },
 
         async startPlaying() {
             console.log(`[startPlaying] 尝试拉流，第 ${this.retryCount + 1} 次`);
@@ -172,26 +165,57 @@ export default {
                 iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
             });
 
+            // 添加接收器，指定接收音视频流
+            pc.addTransceiver('audio', { direction: 'recvonly' });
+            pc.addTransceiver('video', { direction: 'recvonly' });
+
             // 监听远程视频轨道，绑定到 remoteVideo 元素上
             pc.ontrack = event => {
+                console.log('Received remote track:', event.streams[0]);
                 this.$refs.remoteVideo.srcObject = event.streams[0];
                 console.log('[startPlaying] 拉流成功');
                 this.retryCount = 0;  // 重置重试次数
             };
 
+            // 处理 ICE 候选地址
+            pc.onicecandidate = event => {
+                if (event.candidate) {
+                    console.log('[ICE Candidate]', event.candidate);
+                }
+            };
+
             // 创建 SDP Offer 并请求 SRS 返回视频流
-            const offer = await pc.createOffer();
+            const offerOptions = {
+                offerToReceiveAudio: true,
+                offerToReceiveVideo: true
+            };
+
+            const offer = await pc.createOffer(offerOptions);
             await pc.setLocalDescription(offer);
 
+            const resData = {
+                api: 'http://123.56.254.166:1985/rtc/v1/play/',
+                clientip: null,
+                sdp: offer.sdp,
+                streamurl: 'webrtc://123.56.254.166/live/processed_stream',
+                tid: String(Math.floor(Math.random() * 100000)),
+                action: 'on_play'
+            };
+
             try {
-                const response = await fetch(`rtc/play/`, {
+                const response = await fetch(`rtc/v1/play/`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sdp: offer.sdp, type: 'offer' })
+                    body: JSON.stringify(resData)
                 });
 
-                const data = await response.json();
-                await pc.setRemoteDescription(new RTCSessionDescription(data));
+                const responseData = await response.json();
+
+                if (responseData.code && responseData.code !== 0) {
+                    throw new Error(`SRS Error: code=${responseData.code}, message=${responseData.message}`);
+                }
+
+                await pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: responseData.sdp }));
             } catch (error) {
                 console.error('[startPlaying] 拉流失败', error);
                 this.handleRetry();
