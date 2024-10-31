@@ -54,20 +54,6 @@ export default {
                 iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
             });
 
-            // // 添加发送器（Transceiver）
-            // this.peerConnection.addTransceiver('audio', { direction: 'sendonly' });
-            // this.peerConnection.addTransceiver('video', { direction: 'sendonly' });
-            //
-            // // 获取摄像头和麦克风
-            // this.stream = await navigator.mediaDevices.getUserMedia(this.constraints);
-            //
-            // // 添加轨道到 RTCPeerConnection
-            // this.stream.getTracks().forEach(track => {
-            //     this.peerConnection.addTrack(track, this.stream);
-            //     // 触发 ontrack 回调
-            //     this.ontrack && this.ontrack({ track });
-            // });
-
             // 获取本地摄像头和麦克风的流
             this.localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
             this.$refs.localVideo.srcObject = this.localStream;
@@ -107,11 +93,6 @@ export default {
             //         this.peerConnection.addEventListener('icegatheringstatechange', checkState);
             //     }
             // });
-
-            // const offerOptions = {
-            //     offerToReceiveAudio: true,
-            //     offerToReceiveVideo: true
-            // };
 
             // 创建 SDP Offer 并推送到 SRS
             const offer = await this.peerConnection.createOffer();
