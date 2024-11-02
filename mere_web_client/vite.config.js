@@ -11,8 +11,12 @@ export default defineConfig({
   },
     server: {
         proxy: {
-        // '/rtc':  'http://101.126.157.152:1985',
-            '/rtc':  'http://123.56.254.166:1985',
+            '/rtc':  'http://localhost:1985',
+            '/api': {
+                target: 'http://localhost:8010',
+                changeOrigin: true,
+                // rewrite: (path) => path.replace(/^\/api/, '')
+            },
         }
     }
 })

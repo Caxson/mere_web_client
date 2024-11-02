@@ -28,12 +28,14 @@
 export default {
     data() {
         return {
+            sessionId: null, // 存储当前会话的 session_id
             localStream: null,
             peerConnection: null,
             uiState: 0, // 初始化状态
             UI_IDLE: 0, // 状态：等待
             UI_STARTED: 1, // 状态：推流已开始
-            srsUrl: '123.56.254.166',
+            srsUrl: 'localhost',
+            backendUrl: 'localhost',
             retryCount: 0,  // 重试次数
             maxRetries: 3,  // 最大重试次数
             showRetryPrompt: false,  // 控制弹窗显示
@@ -44,103 +46,110 @@ export default {
         async startSession() {
             console.log('[startSession] 开始推流并准备拉流');
 
-            // 关闭已有的 peerConnection
-            if (this.peerConnection) {
-                this.peerConnection.close();
-                this.peerConnection = null;
+            // 如果已有会话在进行，提示用户或先停止
+            if (this.sessionId) {
+                console.warn('已有会话正在进行，请先停止当前会话。');
+                return;
             }
-
-            this.peerConnection = new RTCPeerConnection({
-                iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-            });
-
-            // 获取本地摄像头和麦克风的流
-            this.localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            this.$refs.localVideo.srcObject = this.localStream;
-
-            // 添加镜像样式（动态绑定）
-            this.mirrored = true;
-            this.applyMirror();
-
-            // 查看本地视频流
-            this.localStream.getVideoTracks().forEach(track => console.log('Local video track:', track));
-
-            // 添加发送和接收的接收器
-            // const videoTransceiver = this.peerConnection.addTransceiver(this.localStream.getVideoTracks()[0], { direction: 'sendonly' });
-            // const audioTransceiver = this.peerConnection.addTransceiver(this.localStream.getAudioTracks()[0], { direction: 'sendonly' });
-
-            // 将音视频轨道添加到 RTCPeerConnection
-            this.localStream.getTracks().forEach(track => this.peerConnection.addTrack(track, this.localStream));
-
-            // 处理 ICE 候选地址
-            this.peerConnection.onicecandidate = event => {
-                if (event.candidate) {
-                    console.log('[ICE Candidate]', event.candidate);
-                }
-            };
-
-            // 监听 ICE Gathering 状态
-            // await new Promise(resolve => {
-            //     if (this.peerConnection.iceGatheringState === 'complete') {
-            //         resolve();
-            //     } else {
-            //         const checkState = () => {
-            //             if (this.peerConnection.iceGatheringState === 'complete') {
-            //                 this.peerConnection.removeEventListener('icegatheringstatechange', checkState);
-            //                 resolve();
-            //             }
-            //         };
-            //         this.peerConnection.addEventListener('icegatheringstatechange', checkState);
-            //     }
-            // });
-
-            // 创建 SDP Offer 并推送到 SRS
-            const offer = await this.peerConnection.createOffer();
-            await this.peerConnection.setLocalDescription(offer);
-
-            console.log('SDP:', offer.sdp);
-
-            // const sdpJson = JSON.stringify({ sdp: offer.sdp, type: 'offer' });
-
-            const resData = {
-                api: 'http://123.56.254.166:1985/rtc/v1/publish/',
-                clientip: null,
-                sdp: offer.sdp,
-                streamurl: 'webrtc://123.56.254.166/live/stream',
-                tid: String(Math.floor(Math.random() * 100000)),
-                action: 'on_publish'
-            };
 
             try {
-                const response = await fetch('/rtc/v1/publish/', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(resData)
-                });
+                // 调用后端接口启动会话
+                this.sessionId = await this.apiStartSession();
+                console.log('会话已启动，session_id:', this.sessionId);
 
-                if (!response.ok) {
-                    const text = await response.text();
-                    throw new Error(`HTTP error! status: ${response.status}, message: ${text}`);
+                // 根据 session_id 构建推流和拉流的 streamurl
+                const consumeStreamUrl = `webrtc://localhost/live/stream_${this.sessionId}`;
+                const produceStreamUrl = `webrtc://localhost/live/processed_stream_${this.sessionId}`;
+
+                // 关闭已有的 peerConnection
+                if (this.peerConnection) {
+                    this.peerConnection.close();
+                    this.peerConnection = null;
                 }
 
-                const responseData = await response.json();
-                console.log('Response Data:', responseData);
-                await this.peerConnection.setRemoteDescription(new RTCSessionDescription({
-                    type: 'answer',
-                    sdp: responseData.sdp
-                }));
-            } catch (err) {
-                console.error('Error during startSession:', err);
-            }
+                this.peerConnection = new RTCPeerConnection({
+                    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+                });
 
-            console.log('[startSession] 推流成功，开始拉流');
-            await this.startPlaying();
+                // 获取本地摄像头和麦克风的流
+                this.localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                this.$refs.localVideo.srcObject = this.localStream;
+
+                // 添加镜像样式（动态绑定）
+                this.mirrored = true;
+                this.applyMirror();
+
+                // 查看本地视频流
+                this.localStream.getVideoTracks().forEach(track => console.log('Local video track:', track));
+
+                // 将音视频轨道添加到 RTCPeerConnection
+                this.localStream.getTracks().forEach(track => this.peerConnection.addTrack(track, this.localStream));
+
+                // 处理 ICE 候选地址
+                this.peerConnection.onicecandidate = event => {
+                    if (event.candidate) {
+                        console.log('[ICE Candidate]', event.candidate);
+                    }
+                };
+
+                // 创建 SDP Offer 并推送到 SRS
+                const offer = await this.peerConnection.createOffer();
+                await this.peerConnection.setLocalDescription(offer);
+
+                console.log('SDP:', offer.sdp);
+
+                // const sdpJson = JSON.stringify({ sdp: offer.sdp, type: 'offer' });
+
+                const resData = {
+                    api: 'http://localhost:1985/rtc/v1/publish/',
+                    clientip: null,
+                    sdp: offer.sdp,
+                    streamurl: consumeStreamUrl,
+                    tid: String(Math.floor(Math.random() * 100000)),
+                    action: 'on_publish'
+                };
+
+                try {
+                    const response = await fetch('/rtc/v1/publish/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(resData)
+                    });
+
+                    if (!response.ok) {
+                        const text = await response.text();
+                        throw new Error(`HTTP error! status: ${response.status}, message: ${text}`);
+                    }
+
+                    const responseData = await response.json();
+                    console.log('Response Data:', responseData);
+                    await this.peerConnection.setRemoteDescription(new RTCSessionDescription({
+                        type: 'answer',
+                        sdp: responseData.sdp
+                    }));
+                } catch (err) {
+                    console.error('Error during startSession:', err);
+                    await this.stopSession();
+                    return;
+                }
+
+                console.log('[startSession] 推流成功，开始拉流');
+                await this.startPlaying();
+
+                // 更新 UI 状态
+                this.uiState = this.UI_STARTED;
+            } catch (error) {
+                console.error('Error starting session:', error);
+                // 处理启动会话失败的情况，如显示错误提示
+            }
         },
 
         async startPlaying() {
             console.log(`[startPlaying] 尝试拉流，第 ${this.retryCount + 1} 次`);
+
+            const processedStreamUrl = `webrtc://localhost/live/processed_stream_${this.sessionId}`;
 
             const pc = new RTCPeerConnection({
                 iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
@@ -175,10 +184,10 @@ export default {
             await pc.setLocalDescription(offer);
 
             const resData = {
-                api: 'http://123.56.254.166:1985/rtc/v1/play/',
+                api: 'http://localhost:1985/rtc/v1/play/',
                 clientip: null,
                 sdp: offer.sdp,
-                streamurl: 'webrtc://123.56.254.166/live/processed_stream',
+                streamurl: processedStreamUrl,
                 tid: String(Math.floor(Math.random() * 100000)),
                 action: 'on_play'
             };
@@ -224,24 +233,106 @@ export default {
             this.startSession();
         },
 
-        stopSession() {
+        async stopSession() {
             console.log('[stopSession] 停止会话');
 
+            if (!this.sessionId) {
+                console.warn('没有进行中的会话可供停止。');
+                return;
+            }
+
+            try {
+                // 调用后端接口停止会话
+                await this.apiStopSession(this.sessionId);
+                console.log(`会话 ${this.sessionId} 已停止。`);
+            } catch (error) {
+                console.error(`停止会话 ${this.sessionId} 失败:`, error);
+                // 根据需要处理错误，如显示提示信息
+            }
+
+            // 关闭 peerConnection
             if (this.peerConnection) {
                 this.peerConnection.close();
                 this.peerConnection = null;
             }
 
+            // 关闭拉流 peerConnection（假设有一个拉流的 peerConnection）
+            if (this.playPeerConnection) {
+                this.playPeerConnection.close();
+                this.playPeerConnection = null;
+            }
+
+            // 停止本地媒体流
             if (this.localStream) {
                 this.localStream.getTracks().forEach(track => track.stop());
                 this.localStream = null;
+                this.$refs.localVideo.srcObject = null;
             }
+
+            // 清理远程视频
+            if (this.$refs.remoteVideo.srcObject) {
+                this.$refs.remoteVideo.srcObject.getTracks().forEach(track => track.stop());
+                this.$refs.remoteVideo.srcObject = null;
+            }
+
+            // 重置相关状态
+            this.sessionId = null;
+            this.uiState = this.UI_IDLE;
+            this.retryCount = 0;
+            this.showRetryPrompt = false;
+
+            // 移除镜像样式
+            this.mirrored = false;
+            this.applyMirror();
         },
         applyMirror() {
             if (this.mirrored) {
                 this.$refs.localVideo.classList.add('mirrored-video');
             } else {
                 this.$refs.localVideo.classList.remove('mirrored-video');
+            }
+        },
+        async apiStartSession() {
+            try {
+                const response = await fetch('api/start_session', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({})
+                });
+
+                const result = await response.json();
+                if (response.ok && result.code === 0) {
+                    return result.session_id;
+                } else {
+                    throw new Error(result.message || 'Failed to start session');
+                }
+            } catch (error) {
+                console.error('Error starting session:', error);
+                throw error;
+            }
+        },
+
+        async apiStopSession(sessionId) {
+            try {
+                const response = await fetch('api/stop_session', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ session_id: sessionId })
+                });
+
+                const result = await response.json();
+                if (response.ok && result.code === 0) {
+                    return true;
+                } else {
+                    throw new Error(result.message || 'Failed to stop session');
+                }
+            } catch (error) {
+                console.error('Error stopping session:', error);
+                throw error;
             }
         }
     },
