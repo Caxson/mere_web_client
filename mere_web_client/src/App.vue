@@ -8,7 +8,7 @@
       <nav>
         <ul>
           <li><router-link to="/">首页</router-link></li>
-          <li><router-link to="/videos2">视频</router-link></li>
+          <li><router-link to="/videos">视频</router-link></li>
           <li><router-link to="/text">文字</router-link></li>
           <li><a href="#download">下载</a></li>
           <li><a href="#contact">联系</a></li>

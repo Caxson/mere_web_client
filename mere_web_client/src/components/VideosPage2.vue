@@ -28,14 +28,13 @@
 export default {
     data() {
         return {
-            sessionId: null, // 存储当前会话的 session_id
             localStream: null,
             peerConnection: null,
             uiState: 0, // 初始化状态
             UI_IDLE: 0, // 状态：等待
             UI_STARTED: 1, // 状态：推流已开始
-            srsUrl: 'localhost',
-            backendUrl: 'localhost',
+            srsUrl: '<srsUrl>',
+            backendUrl: '<backendUrl>',
             retryCount: 0,  // 重试次数
             maxRetries: 3,  // 最大重试次数
             showRetryPrompt: false,  // 控制弹窗显示
@@ -46,20 +45,7 @@ export default {
         async startSession() {
             console.log('[startSession] 开始推流并准备拉流');
 
-            // 如果已有会话在进行，提示用户或先停止
-            if (this.sessionId) {
-                console.warn('已有会话正在进行，请先停止当前会话。');
-                return;
-            }
-
             try {
-                // 调用后端接口启动会话
-                this.sessionId = await this.apiStartSession();
-                console.log('会话已启动，session_id:', this.sessionId);
-
-                // 根据 session_id 构建推流和拉流的 streamurl
-                const consumeStreamUrl = `webrtc://localhost/live/stream_${this.sessionId}`;
-                const produceStreamUrl = `webrtc://localhost/live/processed_stream_${this.sessionId}`;
 
                 // 关闭已有的 peerConnection
                 if (this.peerConnection) {
@@ -101,10 +87,10 @@ export default {
                 // const sdpJson = JSON.stringify({ sdp: offer.sdp, type: 'offer' });
 
                 const resData = {
-                    api: 'http://localhost:1985/rtc/v1/publish/',
+                    api: 'http://<srsUrl>:1985/rtc/v1/publish/',
                     clientip: null,
                     sdp: offer.sdp,
-                    streamurl: consumeStreamUrl,
+                    streamurl: 'webrtc://<srsUrl>/live/stream',
                     tid: String(Math.floor(Math.random() * 100000)),
                     action: 'on_publish'
                 };
@@ -149,7 +135,7 @@ export default {
         async startPlaying() {
             console.log(`[startPlaying] 尝试拉流，第 ${this.retryCount + 1} 次`);
 
-            const processedStreamUrl = `webrtc://localhost/live/processed_stream_${this.sessionId}`;
+            const processedStreamUrl = `webrtc://<srsUrl>/live/processed_stream`;
 
             const pc = new RTCPeerConnection({
                 iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
@@ -184,7 +170,7 @@ export default {
             await pc.setLocalDescription(offer);
 
             const resData = {
-                api: 'http://localhost:1985/rtc/v1/play/',
+                api: 'http://<srsUrl>:1985/rtc/v1/play/',
                 clientip: null,
                 sdp: offer.sdp,
                 streamurl: processedStreamUrl,
@@ -236,20 +222,6 @@ export default {
         async stopSession() {
             console.log('[stopSession] 停止会话');
 
-            if (!this.sessionId) {
-                console.warn('没有进行中的会话可供停止。');
-                return;
-            }
-
-            try {
-                // 调用后端接口停止会话
-                await this.apiStopSession(this.sessionId);
-                console.log(`会话 ${this.sessionId} 已停止。`);
-            } catch (error) {
-                console.error(`停止会话 ${this.sessionId} 失败:`, error);
-                // 根据需要处理错误，如显示提示信息
-            }
-
             // 关闭 peerConnection
             if (this.peerConnection) {
                 this.peerConnection.close();
@@ -276,7 +248,6 @@ export default {
             }
 
             // 重置相关状态
-            this.sessionId = null;
             this.uiState = this.UI_IDLE;
             this.retryCount = 0;
             this.showRetryPrompt = false;
@@ -292,49 +263,6 @@ export default {
                 this.$refs.localVideo.classList.remove('mirrored-video');
             }
         },
-        async apiStartSession() {
-            try {
-                const response = await fetch('api/start_session', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({})
-                });
-
-                const result = await response.json();
-                if (response.ok && result.code === 0) {
-                    return result.session_id;
-                } else {
-                    throw new Error(result.message || 'Failed to start session');
-                }
-            } catch (error) {
-                console.error('Error starting session:', error);
-                throw error;
-            }
-        },
-
-        async apiStopSession(sessionId) {
-            try {
-                const response = await fetch('api/stop_session', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ session_id: sessionId })
-                });
-
-                const result = await response.json();
-                if (response.ok && result.code === 0) {
-                    return true;
-                } else {
-                    throw new Error(result.message || 'Failed to stop session');
-                }
-            } catch (error) {
-                console.error('Error stopping session:', error);
-                throw error;
-            }
-        }
     },
     mounted() {
         window.onbeforeunload = () => {
