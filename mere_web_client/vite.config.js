@@ -12,9 +12,9 @@ export default defineConfig({
     server: {
         proxy: {
         // '/rtc':  'http://<backendUrl>:1985',
-            '/rtc':  'http://<srsUrl>:1985',
+            '/rtc':  'http://123.56.254.166:1985',
             '/api': {
-                target: 'http://<backendUrl>:8010',
+                target: 'http://localhost:8010',
                 changeOrigin: true,
                 // rewrite: (path) => path.replace(/^\/api/, '')
             },

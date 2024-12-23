@@ -29,12 +29,13 @@ export default {
     data() {
         return {
             localStream: null,
+            webStream: null,
             peerConnection: null,
             uiState: 0, // 初始化状态
             UI_IDLE: 0, // 状态：等待
             UI_STARTED: 1, // 状态：推流已开始
-            srsUrl: '<srsUrl>',
-            backendUrl: '<backendUrl>',
+            srsUrl: '123.56.254.166',
+            backendUrl: 'localhost',
             retryCount: 0,  // 重试次数
             maxRetries: 3,  // 最大重试次数
             showRetryPrompt: false,  // 控制弹窗显示
@@ -59,7 +60,31 @@ export default {
 
                 // 获取本地摄像头和麦克风的流
                 this.localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                this.$refs.localVideo.srcObject = this.localStream;
+                // 从 localStream 提取音频和视频轨道
+                const videoTrack = this.localStream.getVideoTracks()[0];
+
+                // 创建只包含视频轨道的 MediaStream
+                this.webStream = new MediaStream([videoTrack]);
+
+                // 将流赋值给本地video标签进行预览
+                this.$refs.localVideo.srcObject = this.webStream;
+
+                // 检查音频轨道参数
+                const audioTracks = this.localStream.getAudioTracks();
+                if (audioTracks.length > 0) {
+                    const audioTrack = audioTracks[0];
+                    const settings = audioTrack.getSettings(); // 获取轨道的设置
+                    console.log('[Audio Track Settings]', settings);
+
+                    // 可打印以下参数：
+                    console.log(`采样率: ${settings.sampleRate}`); // 应该接近 16000
+                    console.log(`通道数: ${settings.channelCount}`); // 应该为 1
+                    console.log(`回声消除: ${settings.echoCancellation}`);
+                    console.log(`降噪: ${settings.noiseSuppression}`);
+                    console.log(`自动增益控制: ${settings.autoGainControl}`);
+                } else {
+                    console.warn('没有检测到处理后的音频轨道');
+                }
 
                 // 添加镜像样式（动态绑定）
                 this.mirrored = true;
@@ -87,10 +112,10 @@ export default {
                 // const sdpJson = JSON.stringify({ sdp: offer.sdp, type: 'offer' });
 
                 const resData = {
-                    api: 'http://<srsUrl>:1985/rtc/v1/publish/',
+                    api: `http://${this.srsUrl}:1985/rtc/v1/publish/`,
                     clientip: null,
                     sdp: offer.sdp,
-                    streamurl: 'webrtc://<srsUrl>/live/stream',
+                    streamurl: `webrtc://${this.srsUrl}/live/stream`,
                     tid: String(Math.floor(Math.random() * 100000)),
                     action: 'on_publish'
                 };
@@ -135,7 +160,7 @@ export default {
         async startPlaying() {
             console.log(`[startPlaying] 尝试拉流，第 ${this.retryCount + 1} 次`);
 
-            const processedStreamUrl = `webrtc://<srsUrl>/live/processed_stream`;
+            const processedStreamUrl = `webrtc://${this.srsUrl}/live/processed_stream`;
 
             const pc = new RTCPeerConnection({
                 iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
@@ -170,7 +195,7 @@ export default {
             await pc.setLocalDescription(offer);
 
             const resData = {
-                api: 'http://<srsUrl>:1985/rtc/v1/play/',
+                api: `http://${this.srsUrl}:1985/rtc/v1/play/`,
                 clientip: null,
                 sdp: offer.sdp,
                 streamurl: processedStreamUrl,
@@ -208,7 +233,7 @@ export default {
                 }, 5000);
             } else {
                 console.log('[handleRetry] 重试 3 次失败，显示弹窗提示用户重试');
-                this.showRetryPrompt = true;
+                this.showRetryPrompt = false;
             }
         },
 

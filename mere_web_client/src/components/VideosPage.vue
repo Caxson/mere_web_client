@@ -34,8 +34,8 @@ export default {
             uiState: 0, // 初始化状态
             UI_IDLE: 0, // 状态：等待
             UI_STARTED: 1, // 状态：推流已开始
-            srsUrl: '<srsUrl>',
-            backendUrl: '<backendUrl>',
+            srsUrl: '123.56.254.166',
+            backendUrl: 'localhost',
             retryCount: 0,  // 重试次数
             maxRetries: 3,  // 最大重试次数
             showRetryPrompt: false,  // 控制弹窗显示
@@ -58,8 +58,8 @@ export default {
                 console.log('会话已启动，session_id:', this.sessionId);
 
                 // 根据 session_id 构建推流和拉流的 streamurl
-                const consumeStreamUrl = `webrtc://<srsUrl>/live/stream_${this.sessionId}`;
-                const produceStreamUrl = `webrtc://<srsUrl>/live/processed_stream_${this.sessionId}`;
+                const consumeStreamUrl = `webrtc://${this.srsUrl}/live/stream_${this.sessionId}`;
+                const produceStreamUrl = `webrtc://${this.srsUrl}/live/processed_stream_${this.sessionId}`;
 
                 // 关闭已有的 peerConnection
                 if (this.peerConnection) {
@@ -101,7 +101,7 @@ export default {
                 // const sdpJson = JSON.stringify({ sdp: offer.sdp, type: 'offer' });
 
                 const resData = {
-                    api: 'http://<srsUrl>:1985/rtc/v1/publish/',
+                    api: `http://${this.srsUrl}:1985/rtc/v1/publish/`,
                     clientip: null,
                     sdp: offer.sdp,
                     streamurl: consumeStreamUrl,
@@ -149,7 +149,7 @@ export default {
         async startPlaying() {
             console.log(`[startPlaying] 尝试拉流，第 ${this.retryCount + 1} 次`);
 
-            const processedStreamUrl = `webrtc://<srsUrl>/live/processed_stream_${this.sessionId}`;
+            const processedStreamUrl = `webrtc://${this.srsUrl}/live/processed_stream_${this.sessionId}`;
 
             const pc = new RTCPeerConnection({
                 iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
@@ -184,7 +184,7 @@ export default {
             await pc.setLocalDescription(offer);
 
             const resData = {
-                api: 'http://<srsUrl>:1985/rtc/v1/play/',
+                api: `http://${this.srsUrl}:1985/rtc/v1/play/`,
                 clientip: null,
                 sdp: offer.sdp,
                 streamurl: processedStreamUrl,
