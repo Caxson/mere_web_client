@@ -9,6 +9,7 @@
             <div class="video-label">Remote</div>
             <img src="../assets/mere_d.webp" class="video-placeholder" />
             <video ref="remoteVideo" autoplay playsinline></video>
+            <audio ref="remoteAudio" autoplay></audio>
         </div>
         <div class="button-container">
             <button @click="startSession" :disabled="uiState !== UI_IDLE" class="start">CALL</button>
@@ -173,9 +174,24 @@ export default {
             // 监听远程视频轨道，绑定到 remoteVideo 元素上
             pc.ontrack = event => {
                 console.log('Received remote track:', event.streams[0]);
-                this.$refs.remoteVideo.srcObject = event.streams[0];
-                console.log('[startPlaying] 拉流成功');
-                this.retryCount = 0;  // 重置重试次数
+
+                const audioTracks = event.streams[0].getAudioTracks();
+                const videoTracks = event.streams[0].getVideoTracks();
+
+                if (videoTracks.length > 0) {
+                    console.log('[startPlaying] 视频轨道已接收');
+                    // 如果有视频轨道，绑定到 <video> 元素
+                    this.$refs.remoteVideo.srcObject = event.streams[0];
+                    this.$refs.remoteAudio.srcObject = event.streams[0];
+                } else if (audioTracks.length > 0) {
+                    console.log('[startPlaying] 只有音频轨道');
+                    // 如果只有音频轨道，绑定到 <audio> 元素
+                    this.$refs.remoteAudio.srcObject = event.streams[0];
+                } else {
+                    console.warn('[startPlaying] 未接收到音频或视频轨道');
+                }
+
+                this.retryCount = 0; // 重置重试次数
             };
 
             // 处理 ICE 候选地址
