@@ -34,7 +34,7 @@ export default {
             uiState: 0, // 初始化状态
             UI_IDLE: 0, // 状态：等待
             UI_STARTED: 1, // 状态：推流已开始
-            srsUrl: '123.56.254.166',
+            srsUrl: '127.0.0.1',
             backendUrl: 'localhost',
             retryCount: 0,  // 重试次数
             maxRetries: 3,  // 最大重试次数

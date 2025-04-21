@@ -7,8 +7,10 @@ npm install
 
 ### Compiles and hot-reloads for development
 ```
-npm run serve
+npm run dev
 ```
+
+#ip变化记得修改vite.config.js和videosPage中的ip
 
 ### Compiles and minifies for production
 ```

@@ -1,11 +1,11 @@
 <template>
     <div class="video-wrapper">
-        <div class="video-container">
+        <div class="video-container" style="display: none;">
             <div class="video-label">Local</div>
             <img src="../assets/mere_d.webp" class="video-placeholder" />
             <video ref="localVideo" autoplay playsinline></video>
         </div>
-        <div class="video-container">
+        <div class="video-container" style="display: none;">
             <div class="video-label">Remote</div>
             <img src="../assets/mere_d.webp" class="video-placeholder" />
             <video ref="remoteVideo" autoplay playsinline></video>
@@ -169,21 +169,14 @@ export default {
 
             // 添加接收器，指定接收音视频流
             pc.addTransceiver('audio', { direction: 'recvonly' });
-            pc.addTransceiver('video', { direction: 'recvonly' });
 
             // 监听远程视频轨道，绑定到 remoteVideo 元素上
             pc.ontrack = event => {
                 console.log('Received remote track:', event.streams[0]);
 
                 const audioTracks = event.streams[0].getAudioTracks();
-                const videoTracks = event.streams[0].getVideoTracks();
-
-                if (videoTracks.length > 0) {
-                    console.log('[startPlaying] 视频轨道已接收');
-                    // 如果有视频轨道，绑定到 <video> 元素
-                    this.$refs.remoteVideo.srcObject = event.streams[0];
-                    this.$refs.remoteAudio.srcObject = event.streams[0];
-                } else if (audioTracks.length > 0) {
+                this.$refs.remoteAudio.srcObject = event.streams[0];
+                if (audioTracks.length > 0) {
                     console.log('[startPlaying] 只有音频轨道');
                     // 如果只有音频轨道，绑定到 <audio> 元素
                     this.$refs.remoteAudio.srcObject = event.streams[0];
@@ -204,11 +197,12 @@ export default {
             // 创建 SDP Offer 并请求 SRS 返回视频流
             const offerOptions = {
                 offerToReceiveAudio: true,
-                offerToReceiveVideo: true
+                offerToReceiveVideo: false
             };
 
             const offer = await pc.createOffer(offerOptions);
             await pc.setLocalDescription(offer);
+            console.log('SDP offer:', offer.sdp);
 
             const resData = {
                 api: `http://${this.srsUrl}:1985/rtc/v1/play/`,
@@ -231,6 +225,7 @@ export default {
                 if (responseData.code && responseData.code !== 0) {
                     throw new Error(`SRS Error: code=${responseData.code}, message=${responseData.message}`);
                 }
+                console.log('Response Data:', responseData);
 
                 await pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: responseData.sdp }));
             } catch (error) {
